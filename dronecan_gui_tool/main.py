@@ -78,6 +78,7 @@ from .widgets.local_node import setup_filtering
 from .widgets.log_message_display import LogMessageDisplayWidget
 from .widgets.bus_monitor import BusMonitorManager
 from .widgets.dynamic_node_id_allocator import DynamicNodeIDAllocatorWidget
+from .widgets.file_client import FileClientWidget
 from .widgets.file_server import FileServerWidget
 from .widgets.node_properties import NodePropertiesWindow
 from .widgets.console import ConsoleManager, InternalObjectDescriptor
@@ -124,6 +125,7 @@ class MainWindow(QMainWindow):
         self._dynamic_node_id_allocation_widget = DynamicNodeIDAllocatorWidget(self, node,
                                                                                self._node_monitor_widget.monitor)
         self._file_server_widget = FileServerWidget(self, node)
+        self._file_client_widget = FileClientWidget(self, node)
 
         self._plotter_manager = PlotterManager(self._node)
         self._bus_monitor_manager = BusMonitorManager(self._node, iface_name)
@@ -238,7 +240,8 @@ class MainWindow(QMainWindow):
                                             make_vbox(self._local_node_widget,
                                                       self._adapter_settings_widget,
                                                       self._node_monitor_widget,
-                                                      self._file_server_widget),
+                                                      self._file_server_widget,
+                                                      self._file_client_widget),
                                             make_splitter(Qt.Vertical,
                                                           make_vbox(self._log_message_widget),
                                                           make_vbox(self._dynamic_node_id_allocation_widget,
