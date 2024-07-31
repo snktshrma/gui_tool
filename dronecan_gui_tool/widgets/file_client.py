@@ -35,8 +35,6 @@ class PathItem(QWidget):
         self.on_remove = lambda _: None
         self.on_path_changed = lambda *_: None
 
-        self._file_client = FileClientJson
-
         self._remove_button = make_icon_button('remove', 'Remove this path', self,
                                                on_clicked=lambda: self.on_remove(self))
 
@@ -57,9 +55,9 @@ class PathItem(QWidget):
         self._select_dir_button = make_icon_button('folder-open-o', 'Specify directory path', self,
                                                    on_clicked=self._on_select_path_directory)
 
-        self._hit_read_label = make_icon_button('download', 'Read', self,
-                                              checkable=True,
-                                              on_clicked=self._file_client._read_call)
+        # self._hit_read_label = make_icon_button('download', 'Read', self,
+        #                                       checkable=True,
+        #                                       on_clicked=self._file_client._read_call)
 
         self._hit_write_label = LabelWithIcon(get_icon('upload'), 'Write', self)
         self._hit_write_label.setToolTip('Write')
@@ -70,7 +68,6 @@ class PathItem(QWidget):
         layout.addWidget(self._path_bar, 1)
         layout.addWidget(self._select_file_button)
         layout.addWidget(self._select_dir_button)
-        layout.addWidget(self._hit_read_label)
         layout.addWidget(self._hit_write_label)
         self.setLayout(layout)
 
@@ -106,6 +103,13 @@ class FileClientJson(dronecan.app.file_client.FileClient):
         self._image_timestamps = {}
         self._key_to_path = {}
 
+        self._total_transaction = 0
+        self._is_incomplete = False
+        self.node = node
+
+    def request(self, req, node_id, callback):
+        self.node.request(req, node_id, callback)
+
     def _resolve_path(self, relative):
         rel = relative.path.decode().replace(chr(relativePARATOR), os.path.sep)
         if rel in self._key_to_path:
@@ -128,15 +132,22 @@ class FileClientJson(dronecan.app.file_client.FileClient):
             self._image_timestamps[path] = mtime
             self._images[path] = self._load_image(path)
             self._key_to_path[FileClient_PathKey(path)] = path
+    
+    def _read(self, e):
+        self._is_incomplete = len(e.response.data.data) < 256
+        if self._is_incomplete:
+            self._total_transaction += len(e.response.data.data)
 
     def _read_call(self, path="@SYS/t.txt", node_id=127):
         # logger.debug("[#{0:03d}:uavcan.protocol.file.Read] {1!r} @ offset {2:d}"
         #              .format(e.transfer.source_node_id, e.request.path.path.decode(), e.request.offset))
+        path="@SYS/t.txt"
         try:
             req = uavcan.protocol.file.Read.Request()
             if not self._is_incomplete:
                 req.offset = self._total_transaction
-                req.path = path
+                print(path)
+                req.path.path = path.encode()
                 self.request(req, node_id, self._read)
 
                 return True
@@ -171,12 +182,16 @@ class FileClientWidget(QGroupBox):
         self._add_path_button = \
             make_icon_button('plus', 'Add lookup path (lookup paths can be modified while the client is running)',
                              self, on_clicked=self._on_add_path)
+        
+        self._hit_read_label = make_icon_button('download', 'Read', self,
+                                              checkable=True)
 
         layout = QVBoxLayout(self)
 
         controls_layout = QHBoxLayout(self)
         controls_layout.addWidget(self._start_button)
         controls_layout.addWidget(self._add_path_button)
+        controls_layout.addWidget(self._hit_read_label)
         controls_layout.addStretch(1)
 
         layout.addLayout(controls_layout)
@@ -214,6 +229,8 @@ class FileClientWidget(QGroupBox):
             logger.info('File client stopped')
         else:
             self._file_client = FileClientJson(self._node)
+            self._hit_read_label.clicked.connect(self._file_client._read_call)
+
             self._sync_paths()
 
     def _on_remove_path(self, path):
